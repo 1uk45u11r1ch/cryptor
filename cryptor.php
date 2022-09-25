@@ -154,7 +154,7 @@ if ($action === "encrypt") {
 
 
 
-/* realpath replacement usabe for nonexistent files/dirs */
+/* realpath replacement usable for nonexistent files/dirs */
 function _realpath(string $path):string {
 	return dirname($path) . "/" . basename($path);
 }
