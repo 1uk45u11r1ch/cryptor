@@ -9,14 +9,22 @@ require __DIR__ . "/cli.php";
 $argv = $_SERVER["argv"];
 
 $action = "";
+
 $input_file = "";
-$output_file = "";
 $input_data = "";
+
+$output_file = "";
 $output_data = "";
+
 $passphrase = "";
 $master_key = "";
 $key_encryption_key = "";
+
 $kdf_salt = "";
+$key_encryption_nonce = "";
+$data_encryption_nonce = "";
+
+$encrypted_master_key = "";
 
 $kdf_level = NULL;
 
@@ -35,13 +43,16 @@ if (!$tty_in || !$tty_out) {
 	exit(1);
 }
 
-register_shutdown_function(function() use (&$input_file , &$input_data , &$passphrase , &$master_key , &$key_encryption_key , &$kdf_salt) {
+register_shutdown_function(function() use (&$input_file , &$input_data , &$passphrase , &$master_key , &$key_encryption_key , &$kdf_salt , &$key_encryption_nonce , &$data_encryption_nonce , &$encrypted_master_key) {
 	sodium_memzero($input_file);
 	sodium_memzero($input_data);
 	sodium_memzero($passphrase);
 	sodium_memzero($master_key);
 	sodium_memzero($key_encryption_key);
 	sodium_memzero($kdf_salt);
+	sodium_memzero($key_encryption_nonce);
+	sodium_memzero($data_encryption_nonce);
+	sodium_memzero($encrypted_master_key);
 });
 
 
@@ -137,7 +148,7 @@ if ($input_data === FALSE) {
 	fwrite($tty_out , "FATAL: failed to read input\n");
 	exit(1);
 }
-if (strlen($input_data) < 18) {
+if (strlen($input_data) < (2 + 16 + 24 + (32 + 16) + 24 + 0 + 16)) { /* kdf_level + salt + key_encryption_nonce + (encrypted_master_key + master_key_tag) + data_encryption_nonce + (encrypted_data + data_tag) */
 	fwrite($tty_out , "FATAL: file to decrypt is too short to contain necessary metadata\n");
 	exit(1);
 }
@@ -186,6 +197,64 @@ $start_time = microtime(TRUE);
 $key_encryption_key = sodium_crypto_pwhash(32 , $passphrase , $kdf_salt , get_kdf_ops($kdf_level) , get_kdf_mem($kdf_level) , SODIUM_CRYPTO_PWHASH_ALG_ARGON2ID13);
 fwrite($tty_out , "KDF took " . (microtime(TRUE) - $start_time) . "s\n");
 
+
+if ($action === "encrypt") {
+	/* generate master key */
+	$master_key = random_bytes(32);
+	/* generate nonce */
+	$key_encryption_nonce = random_bytes(24);
+	/* encrypt master key with key_encryption_key */
+	$encrypted_master_key = sodium_crypto_aead_xchacha20poly1305_ietf_encrypt($master_key , "" , $key_encryption_nonce , $key_encryption_key);
+	if ($encrypted_master_key === FALSE) {
+		fwrite($tty_out , "FATAL: failed to encrypt master key\n");
+		exit(1);
+	}
+} else {
+	/* read key encryption nonce */
+	$key_encryption_nonce = substr($input_data , 18 , 24);
+	/* read encrypted master key */
+	$encrypted_master_key = substr($input_data , 42 , 48); /* encrypted key + auth tag */
+	/* decrypt master key with key_encryption_key */
+	$master_key = sodium_crypto_aead_xchacha20poly1305_ietf_decrypt($encrypted_master_key , "" , $key_encryption_nonce , $key_encryption_key);
+	if ($master_key == FALSE) {
+		fwrite($tty_out , "invalid passphrase\n");
+		exit(1);
+	}
+}
+
+
+if ($action === "encrypt") {
+	/* generate data encryption nonce */
+	$data_encryption_nonce = random_bytes(24);
+	/* encrypt data */
+	$encrypted_data = sodium_crypto_aead_xchacha20poly1305_ietf_encrypt($input_data , "" , $data_encryption_nonce , $master_key);
+	if ($encrypted_data == FALSE) {
+		fwrite("FATAL: failed to encrypt data\n");
+		exit(1);
+	}
+	$output_data = strlen($kdf_level) . $kdf_salt . $key_encryption_nonce . $encrypted_master_key . $data_encryption_nonce . $encrypted_data;
+} else {
+	/* read data encryption nonce */
+	$data_encryption_nonce = substr($input_data , 90 , 24);
+	/* decrypt data */
+	$output_data = sodium_crypto_aead_xchacha20poly1305_ietf_decrypt(substr($input_data , 114) , "" , $data_encryption_nonce , $master_key);
+	if ($output_data == FALSE) {
+		fwrite("FATAL: failed to decrypt data");
+		exit(1);
+	}
+}
+
+
+/* write output data */
+
+if ($output_file === "-") {
+	$success = file_put_contents("php://stdout" , $output_data);
+} else {
+	$success = file_put_contents($output_file , $output_data);
+}
+if (!$success) {
+	fwrite($tty_out , "FATAL: failed to write output data\n");
+}
 
 
 
