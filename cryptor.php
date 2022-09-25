@@ -2,15 +2,47 @@
 
 declare(strict_types=1);
 
-const DEFAULT_ENC_FILE_EXT = "enc";
+require __DIR__ . "/config.php";
+require __DIR__ . "/cli.php";
 
 
 $argv = $_SERVER["argv"];
 
-$action = NULL;
-$kdf_level = NULL;
-$input_file = NULL;
-$output_file = NULL;
+$action = "";
+$kdf_level = "";
+$input_file = "";
+$output_file = "";
+$input_data = "";
+$output_data = "";
+$password = "";
+$master_key = "";
+$key_encryption_key = "";
+
+
+/* open tty */
+
+if (PHP_OS === "WINNT") {
+	$tty_str = "con"; /* Windows console device */
+} else {
+	$tty_str = "/dev/tty"; /* active POSIX tty */
+}
+$tty_in = fopen($tty_str , "r");
+$tty_out = fopen($tty_str , "w");
+if (!$tty_in || !$tty_out) {
+	echo "failed to open tty\n";
+	exit(1);
+}
+
+register_shutdown_function(function() use (&$input_file , &$input_data , &$password , &$master_key , &$key_encryption_key) {
+	sodium_memzero($input_file);
+	sodium_memzero($input_data);
+	sodium_memzero($password);
+	sodium_memzero($master_key);
+	sodium_memzero($key_encryption_key);
+});
+
+
+/* parse arguments */
 
 $i = 1;
 /* parse action */
@@ -53,16 +85,15 @@ if ($argv[$i] === "-") {
 } else {
 	$input_file = _realpath(getcwd() . "/" . $argv[$i]);
 	if ($input_file == FALSE || !file_exists($input_file)) {
-		echo $input_file . "\n";
-		echo "FATAL: input file not found\n";
+		fwrite($tty_out , "FATAL: input file not found\n");
 		exit(1);
 	}
 	if (!is_file($input_file)) {
-		echo "FATAL: input file is not a file";
+		fwrite($tty_out , "FATAL: input file is not a file");
 		exit(1);
 	}
 	if (!is_readable($input_file)) {
-		echo "FATAL: unable to read input file\n";
+		fwrite($tty_out , "FATAL: unable to read input file\n");
 		exit(1);
 	}
 }
@@ -70,7 +101,7 @@ $i+= 1;
 /* parse output file */
 if (!isset($argv[$i])) {
 	if ($input_file === "-") {
-		echo "FATAL: no output specified\n";
+		fwrite($tty_out , "FATAL: no output specified\n");
 		exit(1);
 	} else {
 		$output_file = $input_file . "." . DEFAULT_ENC_FILE_EXT;
@@ -81,17 +112,33 @@ if (!isset($argv[$i])) {
 	} else {
 		$output_file = _realpath(getcwd() . "/" . $argv[$i]);
 		if (file_exists($output_file)) {
-			echo "FATAL: output file already exists\n";
+			fwrite($tty_out , "FATAL: output file already exists\n");
 			exit(1);
 		}
 	}
 }
 
 
-echo "action:\t" . $action . "\n";
-echo "kdf_level:\t" . $kdf_level . "\n";
-echo "input:\t" . $input_file . "\n";
-echo "output:\t" . $output_file . "\n";
+/* read input file */
+
+if ($input_file === "-") {
+	$input_data = file_get_contents("php://stdin");
+} else {
+	$input_data = file_get_contents($input_file);
+}
+if ($input_data === FALSE) {
+	fwrite($tty_out , "FATAL: failed to read input\n");
+}
+
+
+/* ask passphrase */
+
+$errormsg = "";
+$success = cli_prompt_password_verify("passphrase: " , "retype passphrase: " , $password , $errormsg);
+if (!$success) {
+	fwrite($tty_out , $errormsg . "\n");
+	exit(1);
+}
 
 
 
@@ -103,7 +150,8 @@ function _realpath(string $path):string {
 }
 
 function print_help():void {
-	echo "usage: cryptor [enc] [-<kdf-level>] [dec] <file> [<output-file>]\n";
+	global $tty_out;
+	fwrite($tty_out , "usage: cryptor [enc] [-<kdf-level>] [dec] <file> [<output-file>]\n");
 }
 
 
