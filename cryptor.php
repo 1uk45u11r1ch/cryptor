@@ -188,7 +188,7 @@ if ($action === "encrypt") {
 		fwrite($tty_out , "FATAL: file to decrypt contains invalid kdf level parameter\n");
 		exit(1);
 	}
-	$kdf_level = intval($kdf_level);
+	$kdf_level = intval($kdf_level_str);
 	/* get salt */
 	$kdf_salt = substr($input_data , 2 , 16);
 }
