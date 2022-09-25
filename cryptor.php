@@ -150,9 +150,11 @@ if ($input_data === FALSE) {
 	fwrite($tty_out , "FATAL: failed to read input\n");
 	exit(1);
 }
-if (strlen($input_data) < (2 + 16 + 24 + (32 + 16) + 24 + 0 + 16)) { /* kdf_level + salt + key_encryption_nonce + (encrypted_master_key + master_key_tag) + data_encryption_nonce + (encrypted_data + data_tag) */
-	fwrite($tty_out , "FATAL: file to decrypt is too short to contain necessary metadata\n");
-	exit(1);
+if ($action === "decrypt") {
+	if (strlen($input_data) < (2 + 16 + 24 + (32 + 16) + 24 + 0 + 16)) { /* kdf_level + salt + key_encryption_nonce + (encrypted_master_key + master_key_tag) + data_encryption_nonce + (encrypted_data + data_tag) */
+		fwrite($tty_out , "FATAL: file to decrypt is too short to contain necessary metadata\n");
+		exit(1);
+	}
 }
 
 
@@ -234,7 +236,7 @@ if ($action === "encrypt") {
 		fwrite("FATAL: failed to encrypt data\n");
 		exit(1);
 	}
-	$output_data = strlen($kdf_level) . $kdf_salt . $key_encryption_nonce . $encrypted_master_key . $data_encryption_nonce . $encrypted_data;
+	$output_data = strval($kdf_level) . $kdf_salt . $key_encryption_nonce . $encrypted_master_key . $data_encryption_nonce . $encrypted_data;
 } else {
 	/* read data encryption nonce */
 	$data_encryption_nonce = substr($input_data , 90 , 24);
