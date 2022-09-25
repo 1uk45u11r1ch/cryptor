@@ -9,7 +9,6 @@ require __DIR__ . "/cli.php";
 $argv = $_SERVER["argv"];
 
 $action = "";
-$kdf_level = "";
 $input_file = "";
 $output_file = "";
 $input_data = "";
@@ -17,6 +16,9 @@ $output_data = "";
 $passphrase = "";
 $master_key = "";
 $key_encryption_key = "";
+$kdf_salt = "";
+
+$kdf_level = NULL;
 
 
 /* open tty */
@@ -33,12 +35,13 @@ if (!$tty_in || !$tty_out) {
 	exit(1);
 }
 
-register_shutdown_function(function() use (&$input_file , &$input_data , &$passphrase , &$master_key , &$key_encryption_key) {
+register_shutdown_function(function() use (&$input_file , &$input_data , &$passphrase , &$master_key , &$key_encryption_key , &$kdf_salt) {
 	sodium_memzero($input_file);
 	sodium_memzero($input_data);
 	sodium_memzero($passphrase);
 	sodium_memzero($master_key);
 	sodium_memzero($key_encryption_key);
+	sodium_memzero($kdf_salt);
 });
 
 
@@ -73,9 +76,13 @@ if (strlen($argv[$i]) <= 3 && strpos($argv[$i] , "-") !== FALSE && $argv[$i] !==
 	}
 	$kdf_level = intval($arg);
 	$i+= 1;
+} else {
+	if ($action === "encrypt") {
+		$kdf_level = DEFAULT_KDF_LEVEL;
+	}
 }
 
-/* parse input file */
+/* parse and validate input file */
 if (!isset($argv[$i])) {
 	print_help();
 	exit(1);
@@ -98,7 +105,7 @@ if ($argv[$i] === "-") {
 	}
 }
 $i+= 1;
-/* parse output file */
+/* parse and validate output file */
 if (!isset($argv[$i])) {
 	if ($input_file === "-") {
 		fwrite($tty_out , "FATAL: no output specified\n");
@@ -130,6 +137,10 @@ if ($input_data === FALSE) {
 	fwrite($tty_out , "FATAL: failed to read input\n");
 	exit(1);
 }
+if (strlen($input_data) < 18) {
+	fwrite($tty_out , "FATAL: file to decrypt is too short to contain necessary metadata\n");
+	exit(1);
+}
 
 
 /* ask passphrase */
@@ -152,7 +163,41 @@ if ($action === "encrypt") {
 
 
 
+if ($action === "encrypt") {
+	/* generate salt */
+	$kdf_salt = random_bytes(16);
+} else {
+	/* get kdf level */
+	$kdf_level_str = substr($input_data , 0 , 2);
+	if (!is_numeric($kdf_level_str) || strval(intval($kdf_level_str)) !== $kdf_level_str || preg_match("/^[0-9]+$/" , $kdf_level_str) !== 1) {
+		fwrite($tty_out , "FATAL: file to decrypt contains invalid kdf level parameter\n");
+		exit(1);
+	}
+	$kdf_level = intval($kdf_level);
+	/* get salt */
+	$kdf_salt = substr($input_data , 2 , 16);
+}
 
+
+/* derive key encryption key */
+
+fwrite($tty_out , "KDF Level = " . $kdf_level . "\n");
+$start_time = microtime(TRUE);
+$key_encryption_key = sodium_crypto_pwhash(32 , $passphrase , $kdf_salt , get_kdf_ops($kdf_level) , get_kdf_mem($kdf_level) , SODIUM_CRYPTO_PWHASH_ALG_ARGON2ID13);
+fwrite($tty_out , "KDF took " . (microtime(TRUE) - $start_time) . "s\n");
+
+
+
+
+
+
+function get_kdf_ops(int $kdf_level):int {
+	return (int) round($kdf_level / 2);
+}
+
+function get_kdf_mem(int $kdf_level):int {
+	return (int) round($kdf_level / 8 * (1 << 30));
+}
 
 /* realpath replacement usable for nonexistent files/dirs */
 function _realpath(string $path):string {
