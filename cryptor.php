@@ -134,11 +134,20 @@ if ($input_data === FALSE) {
 
 /* ask passphrase */
 
-$errormsg = "";
-$success = cli_prompt_passphrase_verify("passphrase: " , "retype passphrase: " , $passphrase , $errormsg);
-if (!$success) {
-	fwrite($tty_out , $errormsg . "\n");
-	exit(1);
+if ($action === "encrypt") {
+	$errormsg = "";
+	$success = cli_prompt_passphrase_verify("passphrase: " , "retype passphrase: " , $passphrase , $errormsg);
+	if (!$success) {
+		fwrite($tty_out , $errormsg . "\n");
+		exit(1);
+	}
+} else {
+	$errormsg = "";
+	$success = cli_prompt_passphrase("passphrase: " , $passphrase , $errormsg);
+	if (!$success) {
+		fwrite($tty_out , $errormsg . "\n");
+		exit(1);
+	}
 }
 
 
