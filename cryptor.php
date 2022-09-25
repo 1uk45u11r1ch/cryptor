@@ -14,7 +14,7 @@ $input_file = "";
 $output_file = "";
 $input_data = "";
 $output_data = "";
-$password = "";
+$passphrase = "";
 $master_key = "";
 $key_encryption_key = "";
 
@@ -33,10 +33,10 @@ if (!$tty_in || !$tty_out) {
 	exit(1);
 }
 
-register_shutdown_function(function() use (&$input_file , &$input_data , &$password , &$master_key , &$key_encryption_key) {
+register_shutdown_function(function() use (&$input_file , &$input_data , &$passphrase , &$master_key , &$key_encryption_key) {
 	sodium_memzero($input_file);
 	sodium_memzero($input_data);
-	sodium_memzero($password);
+	sodium_memzero($passphrase);
 	sodium_memzero($master_key);
 	sodium_memzero($key_encryption_key);
 });
@@ -128,13 +128,14 @@ if ($input_file === "-") {
 }
 if ($input_data === FALSE) {
 	fwrite($tty_out , "FATAL: failed to read input\n");
+	exit(1);
 }
 
 
 /* ask passphrase */
 
 $errormsg = "";
-$success = cli_prompt_password_verify("passphrase: " , "retype passphrase: " , $password , $errormsg);
+$success = cli_prompt_passphrase_verify("passphrase: " , "retype passphrase: " , $passphrase , $errormsg);
 if (!$success) {
 	fwrite($tty_out , $errormsg . "\n");
 	exit(1);

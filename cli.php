@@ -36,7 +36,7 @@ function cli_clear_screen():void {
 	fwrite($tty_out , "\e[H\e[J");
 }
 
-function cli_read_line_obscured(string $prompt = "" , string &$password , string &$errormsg):bool {
+function cli_read_line_obscured(string $prompt = "" , string &$passphrase , string &$errormsg):bool {
 	global $cli_windows_obscureprompt_status;
 	global $tty_in;
 	global $tty_out;
@@ -70,7 +70,7 @@ function cli_read_line_obscured(string $prompt = "" , string &$password , string
 		cli_clear_screen();
 		$cli_windows_obscureprompt_status = FALSE;
 	}
-	$password = $line_trimmed;
+	$passphrase = $line_trimmed;
 
 	$error = FALSE;
 	
@@ -84,40 +84,40 @@ function cli_read_line_obscured(string $prompt = "" , string &$password , string
 		return !$error;
 }
 
-function cli_prompt_password(string $prompt = "" , string &$password , string &$errormsg):bool {
-	if (cli_read_line_obscured($prompt , $password , $errormsg) !== TRUE) {
+function cli_prompt_passphrase(string $prompt = "" , string &$passphrase , string &$errormsg):bool {
+	if (cli_read_line_obscured($prompt , $passphrase , $errormsg) !== TRUE) {
 		return FALSE;
 	}
-	if ($password == "") {
-		$errormsg = "password cannot be empty";
+	if ($passphrase == "") {
+		$errormsg = "passphrase cannot be empty";
 		return FALSE;
 	}
 	return TRUE;
 }
 
-function cli_prompt_password_verify(string $prompt = "" , string $verify_prompt = "" , string &$password , string &$errormsg):bool {
+function cli_prompt_passphrase_verify(string $prompt = "" , string $verify_prompt = "" , string &$passphrase , string &$errormsg):bool {
 	$error = TRUE;
-	$password_1 = "";
-	$password_2 = "";
+	$passphrase_1 = "";
+	$passphrase_2 = "";
 
-	if (cli_prompt_password($prompt , $password_1 , $errormsg) !== TRUE) {
+	if (cli_prompt_passphrase($prompt , $passphrase_1 , $errormsg) !== TRUE) {
 		goto end;
 	}
-	if (cli_prompt_password($verify_prompt , $password_2 , $errormsg) !== TRUE) {
+	if (cli_prompt_passphrase($verify_prompt , $passphrase_2 , $errormsg) !== TRUE) {
 		goto end;
 	}
-	/* compare passwords */
-	if (hash_equals($password_1 , $password_2) !== TRUE) {
-		$errormsg = "passwords don't match";
+	/* compare passphrases */
+	if (hash_equals($passphrase_1 , $passphrase_2) !== TRUE) {
+		$errormsg = "passphrases don't match";
 		goto end;
 	}
-	$password = $password_1;
+	$passphrase = $passphrase_1;
 
 	$error = FALSE;
 
 	end:
-		sodium_memzero($password_1);
-		sodium_memzero($password_2);
+		sodium_memzero($passphrase_1);
+		sodium_memzero($passphrase_2);
 
 		return !$error;
 }
