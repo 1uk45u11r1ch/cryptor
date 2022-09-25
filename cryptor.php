@@ -43,9 +43,11 @@ if (!$tty_in || !$tty_out) {
 	exit(1);
 }
 
-register_shutdown_function(function() use (&$input_file , &$input_data , &$passphrase , &$master_key , &$key_encryption_key , &$kdf_salt , &$key_encryption_nonce , &$data_encryption_nonce , &$encrypted_master_key) {
+register_shutdown_function(function() use (&$input_file , &$input_data , &$output_file , &$output_data , &$passphrase , &$master_key , &$key_encryption_key , &$kdf_salt , &$key_encryption_nonce , &$data_encryption_nonce , &$encrypted_master_key) {
 	sodium_memzero($input_file);
 	sodium_memzero($input_data);
+	sodium_memzero($output_file);
+	sodium_memzero($output_data);
 	sodium_memzero($passphrase);
 	sodium_memzero($master_key);
 	sodium_memzero($key_encryption_key);
