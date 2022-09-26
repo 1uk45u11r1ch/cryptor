@@ -184,7 +184,7 @@ if ($action === "encrypt") {
 } else {
 	/* get kdf level */
 	$kdf_level_str = substr($input_data , 0 , 2);
-	if (!is_numeric($kdf_level_str) || strval(intval($kdf_level_str)) !== $kdf_level_str || preg_match("/^[0-9]+$/" , $kdf_level_str) !== 1) {
+	if (!is_numeric($kdf_level_str) || str_pad(strval(intval($kdf_level_str)) , 2 , "0" , STR_PAD_LEFT) !== $kdf_level_str || preg_match("/^[0-9]+$/" , $kdf_level_str) !== 1) {
 		fwrite($tty_out , "FATAL: file to decrypt contains invalid kdf level parameter\n");
 		exit(1);
 	}
@@ -236,7 +236,7 @@ if ($action === "encrypt") {
 		fwrite("FATAL: failed to encrypt data\n");
 		exit(1);
 	}
-	$output_data = strval($kdf_level) . $kdf_salt . $key_encryption_nonce . $encrypted_master_key . $data_encryption_nonce . $encrypted_data;
+	$output_data = str_pad(strval($kdf_level) , 2 , "0" , STR_PAD_LEFT) . $kdf_salt . $key_encryption_nonce . $encrypted_master_key . $data_encryption_nonce . $encrypted_data;
 } else {
 	/* read data encryption nonce */
 	$data_encryption_nonce = substr($input_data , 90 , 24);
