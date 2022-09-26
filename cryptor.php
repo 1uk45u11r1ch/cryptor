@@ -124,7 +124,20 @@ if (!isset($argv[$i])) {
 		fwrite($tty_out , "FATAL: no output specified\n");
 		exit(1);
 	} else {
-		$output_file = $input_file . "." . DEFAULT_ENC_FILE_EXT;
+		if ($action === "encrypt") {
+			/* append default encrypted file extension */
+			$output_file = $input_file . "." . DEFAULT_ENC_FILE_EXT;
+		} else {
+			$input_file_arr = explode("." , $input_file);
+			if (count($input_file_arr) > 1 && end($input_file_arr) === DEFAULT_ENC_FILE_EXT) {
+				/* remove default encrypted file extension */
+				unset($input_file_arr[count($input_file_arr) - 1]);
+				$output_file = implode("." , $input_file_arr);
+			} else {
+				/* append default decrypted file extension */
+				$output_file = $input_file . "." . DEFAULT_DEC_FILE_EXT;
+			}
+		}
 	}
 } else {
 	if ($argv[$i] === "-") {
